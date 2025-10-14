@@ -1,0 +1,126 @@
+global:
+  domain: argocd-qnb.zenia.services
+  image:
+    repository: atpaixacr.azurecr.io/quay.io/argoproj/argocd
+    tag: "v2.10.7"
+  #imagePullSecrets:
+  #  - name: tfiacr-docker-config
+configs:
+  params:
+    server.insecure: true
+  cm:
+    accounts.readonlyuser: apiKey, login
+  rbac:
+    policy.csv: |
+      p, role:readonly, applications, get, *, allow
+      p, role:readonly, projects, get, *, allow
+      p, role:readonly, clusters, get, *, allow
+      p, role:readonly, repositories, get, *, allow
+      p, role:readonly, logs, get, *, allow
+      p, role:readonly, exec, get, *, deny
+      
+      g, readonlyuser, role:readonly
+
+  cmp:
+    create: true
+    plugins:
+      argocd-custom-plugin:
+        init:
+          command: ["argocd-custom-plugin.sh"]
+          args: ["init"]
+        generate:
+          command: ["argocd-custom-plugin.sh"]
+          args: ["generate"]
+        discover:
+          find:
+            command:
+              - sh
+              - "-c"
+              - "find . -name '*.yaml'"
+  repositories:
+
+server:
+  ingress:
+    enabled: false
+    #annotations:
+    # nginx.ingress.kubernetes.io/force-ssl-redirect: "false"
+    # nginx.ingress.kubernetes.io/ssl-passthrough: "true"
+    #annotations:
+    #  cert-manager.io/cluster-issuer: letsencrypt-prod
+    #  nginx.ingress.kubernetes.io/ssl-passthrough: "true"
+    #  nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
+    ingressClassName: "nginx"
+    #extraTls:
+    #  - hosts:
+    #      - argocd.tabfoods.com
+    #    secretName: argocd-tls
+repoServer:
+  autoscaling:
+    enabled: true
+    minReplicas: 1
+    maxReplicas: 3
+    targetCPUUtilizationPercentage: 100
+    targetMemoryUtilizationPercentage: 100
+  #imagePullSecrets:
+  #  - name: tfiacr-docker-config
+  extraContainers:
+    - name: argocd-custom-plugin
+      imagePullPolicy: Always
+      env:
+        - name: VAULT_ADDR
+          value: http://vault.vault.svc:8200
+        - name: AVP_TYPE
+          value: vault
+        - name: AVP_AUTH_TYPE
+          value: k8s
+        - name: AVP_K8S_ROLE
+          value: argocd
+        - name: HELM_CACHE_HOME
+          value: /helm-working-dir
+        - name: HELM_CONFIG_HOME
+          value: /helm-working-dir
+        - name: HELM_DATA_HOME
+          value: /helm-working-dir
+      command: [/var/run/argocd/argocd-cmp-server]
+      image: atpaixacr.azurecr.io/atp/devops/argocd-custom-plugin:1.0.0
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+      resources:
+        requests:
+          cpu: 10m
+          memory: 512Mi
+      volumeMounts:
+        - mountPath: /var/run/argocd
+          name: var-files
+        - mountPath: /home/argocd/cmp-server/plugins
+          name: plugins
+        - mountPath: /tmp
+          name: tmp
+        - mountPath: /home/argocd/cmp-server/config/plugin.yaml
+          subPath: argocd-custom-plugin.yaml
+          name: argocd-cmp-cm
+        - name: helm-working-dir
+          mountPath: /helm-working-dir
+  volumes:
+    - configMap:
+        name: argocd-cmp-cm
+      name: argocd-cmp-cm
+  resources:
+    requests:
+      cpu: 50m
+      memory: 256Mi
+
+dex:
+  image:
+    repository: atpaixacr.azurecr.io/dexidp/dex
+    tag: v2.38.0
+
+redis:
+  image:
+    repository: atpaixacr.azurecr.io/docker/library/redis
+    tag: 7.2.4-alpine
+redis-ha:
+  image:
+    repository: atpaixacr.azurecr.io/docker/library/redis
+    tag: 7.2.4-alpine
