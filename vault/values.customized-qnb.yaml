@@ -1,0 +1,80 @@
+# Copyright (c) HashiCorp, Inc.
+# SPDX-License-Identifier: MPL-2.0
+fullnameOverride: vault
+global:
+  namespace: "vault"
+  imagePullSecrets:
+    - name: atpaixacr-docker-config
+injector:
+  enabled: false
+server:
+  image:
+    repository: "atpaixacr.azurecr.io/hashicorp/vault"
+    tag: "1.16.3"
+  resources:
+    requests:
+      memory: 256Mi
+      cpu: 10m
+    limits:
+      memory: 256Mi
+      cpu: 250m
+  logLevel: "debug"
+  ingress:
+    enabled: false
+    #annotations:
+    #  cert-manager.io/cluster-issuer: letsencrypt-prod
+    #ingressClassName: "nginx"
+    #hosts:
+    #  - host: vault-tabfoods.zenia.services
+    #tls:
+    #  - secretName: vault-tls
+    #    hosts:
+    #      - vault.puat.gtp.integration-team.pl
+  serviceAccount:
+    name: "vault-auth"
+    createSecret: true
+  # extraEnvironmentVars:
+  #   AZURE_TENANT_ID: defined in the cd.k8s-and-argocd.yaml pipeline
+  #   VAULT_AZUREKEYVAULT_VAULT_NAME: defined in the cd.k8s-and-argocd.yaml pipeline
+  #   VAULT_AZUREKEYVAULT_KEY_NAME: defined in the cd.k8s-and-argocd.yaml pipeline
+  #   AZURE_CLIENT_ID: defined in the cd.k8s-and-argocd.yaml pipeline
+  #   AZURE_CLIENT_SECRET: defined in the cd.k8s-and-argocd.yaml pipeline
+  affinity:
+  dataStorage:
+    storageClass: "nfs-client"
+    size: 2Gi
+    annotations:
+      "helm.sh/resource-policy": keep
+    container:
+      allowPrivilegeEscalation: true
+  #standalone:
+  #  config: |
+  #    disable_mlock = true
+  #    ui = true
+  #
+  #    listener "tcp" {
+  #      tls_disable = 1
+  #      address = "[::]:8200"
+  #      cluster_address = "[::]:8201"
+  #    }
+  #    storage "file" {
+  #      path = "/vault/data"
+  #    }
+  #    seal "azurekeyvault" {}
+ui:
+  enabled: true
+  activeVaultPodOnly: true
+
+  readinessProbe:
+    failureThreshold: 3
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    successThreshold: 1
+    timeoutSeconds: 10
+  livenessProbe:
+    failureThreshold: 3
+    initialDelaySeconds: 10
+    periodSeconds: 1
+    successThreshold: 1
+    timeoutSeconds: 10
+  debug: true
